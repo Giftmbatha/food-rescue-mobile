@@ -1,0 +1,58 @@
+  spring.application.name=Backend
+# Spring Boot configuration for Food Rescue backend
+spring:
+  application:
+    name: food-rescue-backend
+
+  # Database Configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/foodrescue
+    username: dev
+    password: dev
+    driver-class_name: org.postgresql.Driver
+
+  # JPA / Hibernate configuration
+  jpa:
+    hibernate:
+      # validation checks schema matches entities, does not modify DB
+      # We'll use Flyway for migrations, not Hibernate auto-DDL
+      ddl-auto: validate
+    show-sql: true # logs SQL queries during development
+    properties:
+      hibernate:
+        format_sql: true # pretty-print SQL
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # Redis configuration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # No password for local dev (Redis configured without AUTH)
+
+  # RabbitMQ configuration
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: dev
+    password: dev
+
+  # Server configuration
+server:
+  port: 8080
+
+  # Logging
+logging:
+  level:
+    com.foodrescue.backend: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+  # Actuator endpoints for health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always

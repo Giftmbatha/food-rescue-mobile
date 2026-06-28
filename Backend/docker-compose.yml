@@ -1,0 +1,98 @@
+# Food Rescue local development infrastructure
+# Run: docker compose up -d
+# stop: docker compose down
+# Reset: docker compose down -v
+
+version: "3.9"
+
+services:
+  # PostgreSQL: Primary database for all application data
+  # Includes PostGIS extension for geospatial queries
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: foodrescue-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: foodrescue
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+      # Timezone for consistent timestamp handling
+      TZ: Africa/Johannesburg
+      PGTZ: Africa/Johannesburg
+    ports:
+      # Host: Container mapping - allows Spring Boo to connect via localhost:532
+      - "5432:5432"
+    volumes:
+      # Named volume persists data across container restart
+      - postgres_data:/var/lib/postgresql/data
+      # Initialization scripts run on first container start
+      - ./docker/postgres/init:docker-encryption-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d foodrescue"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - foodrescue-network
+
+  # Redis: In-memory data store for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: foodrescue-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    # Redis config: enable persistence, set memory limit
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - foodrescue-network
+
+  # RabbitMQ: message broker for async task processing
+  # Management UI available for monitoring queues
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: foodrescue-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: dev
+      RABBITMQ_DEFAULT_PASS: dev
+    ports:
+      # AMQP protocol: for application connections
+      - "5672:5672"
+      # Management UI: http://localhost:15672
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - foodrescue-network
+
+# Named volumes: Docker manages these, data persists across restarts
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+
+# Custom network: Services communicate by container name (DNS resolution)
+networks:
+  foodrescue-network:
+    driver: bridge
