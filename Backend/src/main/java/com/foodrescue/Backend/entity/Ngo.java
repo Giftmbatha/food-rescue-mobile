@@ -49,7 +49,7 @@ public class Ngo {
     private String contactPerson;
 
     /**
-     * Geographic area served (e.g., "Cape Town Metro", "Khayelitsha").
+     * Geographic area served (e.g., "City Of Tshwane", "Mabopane").
      * Used for filtering relevant listings.
      */
     @Column(length = 100)
