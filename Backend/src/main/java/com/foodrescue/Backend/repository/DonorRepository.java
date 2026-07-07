@@ -1,6 +1,6 @@
-package com.foodrescue.backend.repository;
+package com.foodrescue.Backend.repository;
 
-import com.foodrescue.backend.entity.Donor;
+import com.foodrescue.Backend.entity.Donor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

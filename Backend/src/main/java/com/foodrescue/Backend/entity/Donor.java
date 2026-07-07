@@ -1,4 +1,4 @@
-package com.foodrescue.backend.entity;
+package com.foodrescue.Backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -74,7 +74,7 @@ public class Donor {
         HOTEL,
         CATERING,
         FARM,
-        SURPLIER,
+        SUPPLIER,
         OTHER
     }
 }

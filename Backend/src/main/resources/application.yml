@@ -1,4 +1,3 @@
-#spring.application.name=Backend
 # Spring Boot configuration for Food Rescue backend
 spring:
   application:
