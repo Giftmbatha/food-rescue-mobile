@@ -1,4 +1,4 @@
-package com.foodrescue.backend.entity;
+package com.foodrescue.Backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
