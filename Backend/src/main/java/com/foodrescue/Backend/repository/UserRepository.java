@@ -1,6 +1,6 @@
-package com.foodrescue.backend.repository;
+package com.foodrescue.Backend.repository;
 
-import com.foodrescue.backend.entity.User;
+import com.foodrescue.Backend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

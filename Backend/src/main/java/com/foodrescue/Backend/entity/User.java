@@ -1,4 +1,4 @@
-package com.foodrescue.backend.entity;
+package com.foodrescue.Backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -41,7 +41,7 @@ public class User {
 
     @Column(nullable = false)
     @Builder.Default
-    private Boolean iaActive = true;
+    private Boolean isActive = true;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
