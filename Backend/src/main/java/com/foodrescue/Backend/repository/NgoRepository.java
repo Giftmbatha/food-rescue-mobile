@@ -18,7 +18,7 @@ public interface NgoRepository extends JpaRepository<Ngo, UUID> {
 
     boolean existsByOrgNameIgnoreCase(String orgName);
 
-    Page<Ngo> findByOrgnameConatainingIgnoreCase(String keyword, Pageable pageable);
+    Page<Ngo> findByOrgNameContainingIgnoreCase(String keyword, Pageable pageable);
 
     Page<Ngo> findByServiceAreaIgnoreCase(String serviceArea, Pageable pageable);
 }
