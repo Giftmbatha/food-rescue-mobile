@@ -18,7 +18,7 @@ public interface DonorRepository extends JpaRepository<Donor, UUID>{
 
     Optional<Donor> findByOrgNameIgnoreCase(String orgName);
 
-    boolean existsByOrgnameIgnoreCase(String orgName);
+    boolean existsByOrgNameIgnoreCase(String orgName);
 
     Page<Donor> findByOrgNameContainingIgnoreCase(String keyword, Pageable pageable);
 

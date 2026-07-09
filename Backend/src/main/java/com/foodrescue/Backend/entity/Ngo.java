@@ -39,10 +39,10 @@ public class Ngo {
     @Column(nullable = false, length = 255)
     private String address;
 
-    @Column(precision = 10, scale = 8)
+    @Column
     private Double latitude;
 
-    @Column(precision = 10, scale = 8)
+    @Column
     private Double logitude;
 
     @Column(length = 100)
@@ -55,8 +55,7 @@ public class Ngo {
     @Column(length = 100)
     private String serviceArea;
 
-    @Column(precision = 2, scale = 1)
-    @Builder.Default
+    @Column
     private Double ratingAvg = 0.0;
 
     @CreationTimestamp
