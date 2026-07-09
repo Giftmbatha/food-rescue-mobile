@@ -33,6 +33,9 @@ public class Donor {
     @JoinColumn(name = "id")
     private User user;
 
+    @Column(nullable = false, length = 100)
+    private String orgName;
+
    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private OrgType orgType;
@@ -46,17 +49,16 @@ public class Donor {
      * Precision: 8 decimal places = ∼1.1mm accuracy.
      * sufficient for building-level pickup locations
      */
-    @Column(precision = 10, scale = 8)
+    @Column
     private Double latitude;
 
-    @Column(precision = 10, scale = 8)
+    @Column
     private Double longitude;
 
     @Column(length = 100)
     private String contactPerson;
 
-    @Column(precision = 2, scale = 1)
-    @Builder.Default
+    @Column
     private Double ratingAvg = 0.0;
 
     @CreationTimestamp
