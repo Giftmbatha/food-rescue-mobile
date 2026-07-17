@@ -59,6 +59,7 @@ public class Donor {
     private String contactPerson;
 
     @Column
+    @Builder.Default
     private Double ratingAvg = 0.0;
 
     @CreationTimestamp
@@ -71,7 +72,7 @@ public class Donor {
 
     public enum OrgType {
         SUPERMARKET,
-        RESTURANT,
+        RESTAuRANT,
         BAKERY,
         HOTEL,
         CATERING,
