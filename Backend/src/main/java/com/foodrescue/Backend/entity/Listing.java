@@ -53,10 +53,10 @@ public class Listing {
 
     // Geocoded location for map display and radius search.
     @Column
-    private String pickupLatitude;
+    private Double pickupLatitude;
 
     @Column
-    private String pickupLongitude;
+    private Double pickupLongitude;
 
     // When the donor is available for pickup.
     @Column(nullable = false, length = 100)
