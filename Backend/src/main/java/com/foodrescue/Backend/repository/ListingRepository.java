@@ -53,6 +53,6 @@ public interface ListingRepository extends JpaRepository<Listing, UUID> {
     );
 
     // Count claims for a listing
-    @Query("SELECT COUNT(c) FROM Claim c WHERE c.listing.id = :listingId")
-    Long countClaimsByListingId(@Param("listingId") UUID listingId);
+    //@Query("SELECT COUNT(c) FROM Claim c JOIN c.listing l WHERE l.id = :listingId")
+    //Long countClaimsByListingId(@Param("listingId") UUID listingId);
 }
