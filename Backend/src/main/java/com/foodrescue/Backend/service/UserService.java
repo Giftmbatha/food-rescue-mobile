@@ -42,7 +42,7 @@ public class UserService {
      *   - Prevents partial data (user exists but profile doesn't)
      *
      * readOnly = false (default): This method writes to the database.
-     */
+
     @Transactional
     public UserResponseDto register(UserRegistrationDto dto) {
         log.info("Registering new user with email: {}", dto.getEmail());
@@ -81,6 +81,7 @@ public class UserService {
         // Never return the entity directly — controlled exposure
         return mapToResponseDto(savedUser);
     }
+    */
 
     /**
      * Find user by email.
