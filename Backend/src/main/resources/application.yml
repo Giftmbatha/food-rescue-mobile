@@ -16,6 +16,12 @@ spring:
       ddl-auto: update # validation checks schema matches entities, does not modify DB
     show-sql: true # logs SQL queries during development
 
+  # JWT Configuration
+  jwt:
+    secret: ${JWT_SECRET:my-very-long-secret-key-that-needs-to-be-at-least-256-bits-for-hs256-algorithm-to-work-properly}
+    access-token-expiration-ms: 900000        # 15 minutes
+    refresh-token-expiration-ms: 604800000    # 7 days
+
   # Redis configuration
   data:
     redis:
