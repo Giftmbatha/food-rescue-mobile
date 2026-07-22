@@ -104,4 +104,20 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(500, "Internal server error", errorDetails));
     }
+
+    // Handle all unauthorized users
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalState(IllegalStateException ex) {
+        log.warn("Illegal state: {}", ex.getMessage());
+
+        ApiResponse.ErrorDetails errorDetails = ApiResponse.ErrorDetails.builder()
+                .code("ACCESS_DENIED")
+                .description(ex.getMessage())
+                .build();
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(403, ex.getMessage(), errorDetails));
+    }
 }
