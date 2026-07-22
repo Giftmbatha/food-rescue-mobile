@@ -1,11 +1,12 @@
 package com.foodrescue.Backend.controller;
 
+import com.foodrescue.Backend.dto.*;
 import com.foodrescue.Backend.entity.FoodCategory;
 import com.foodrescue.Backend.entity.ListingStatus;
+import com.foodrescue.Backend.entity.User;
+import com.foodrescue.Backend.security.CurrentUser;
+import com.foodrescue.Backend.service.CurrentUserService;
 import com.foodrescue.Backend.service.ListingService;
-import com.foodrescue.Backend.dto.ListingRequestDto;
-import com.foodrescue.Backend.dto.ListingResponseDto;
-import com.foodrescue.Backend.dto.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,19 +27,30 @@ import java.util.UUID;
 public class ListingController {
 
     private final ListingService listingService;
+    private final CurrentUserService currentUserService;
 
     /**
-     * Create a new food listing.
+     * Create a new listing — DONOR only.
      *
-     * POST /api/v1/listings
-     *
-     * For now, donorId is passed as query param.
-     * In Week 3, we'll extract it from JWT token.
+     * Extracts authenticated user from JWT, verifies they are a donor,
+     * then creates the listing with their donor profile.
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<ListingResponseDto>> createListing(@RequestParam UUID donorId, @Valid @RequestBody ListingRequestDto requestDto){
+    public ResponseEntity<ApiResponse<ListingResponseDto>> createListing(
+            @Valid @RequestBody ListingRequestDto requestDto) {
 
-        log.info("Listing creation request from donor: {}", donorId);
+        User currentUser = currentUserService.getCurrentUser();
+
+        // Verify role
+        if (currentUser.getRole() != User.Role.DONOR) {
+            log.warn("Non-donor attempted to create listing: {}", currentUser.getEmail());
+            throw new IllegalStateException("Only donors can create listings");
+        }
+
+        // Get donor ID from user (they share UUID via @MapsId)
+        UUID donorId = currentUser.getId();
+
+        log.info("Creating listing for donor: {}", donorId);
 
         ListingResponseDto created = listingService.createListing(donorId, requestDto);
 
