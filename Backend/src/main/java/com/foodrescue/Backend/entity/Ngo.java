@@ -43,7 +43,7 @@ public class Ngo {
     private Double latitude;
 
     @Column
-    private Double logitude;
+    private Double longitude;
 
     @Column(length = 100)
     private String contactPerson;
@@ -56,6 +56,7 @@ public class Ngo {
     private String serviceArea;
 
     @Column
+    @Builder.Default
     private Double ratingAvg = 0.0;
 
     @CreationTimestamp
