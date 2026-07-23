@@ -86,7 +86,7 @@ public class Claim {
     }
 
     // Business method: mark as reject.
-    public void reject() {
+    public void reject(String donorResponse) {
         if (this.status != ClaimStatus.PENDING) {
             throw new IllegalStateException("cannot reject claim in state: " + this.status);
         }
