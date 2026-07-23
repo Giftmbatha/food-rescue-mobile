@@ -178,6 +178,69 @@ public class ClaimService {
         return claims.map((this::mapToResponseDto));
     }
 
+    // NGO cancels their own pending claim
+    @Transactional
+    public ClaimResponseDto cancelClaim(UUID claimId) {
+        User currentUser = currentUserService.getCurrentUser();
+
+        if (currentUser.getRole() != User.Role.NGO) {
+            throw new IllegalStateException("Only NGOs can cancel claims");
+        }
+
+        Claim claim = claimRepository.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException("Claim not found: " + claimId));
+
+        if (!claim.getNgo().getId().equals(currentUser.getId())) {
+            throw new IllegalStateException("You can only cancel your own claims");
+        }
+
+        // Delegate state transition to entity (encapsulation)
+        claim.cancel();
+
+        Claim saved = claimRepository.save(claim);
+
+        // Check if listing should revert to AVAILABLE
+        Listing listing = claim.getListing();
+        Long pendingCount = claimRepository.countByListingIdAndStatus(
+                listing.getId(), ClaimStatus.PENDING);
+
+        if (pendingCount == 0 && listing.getStatus() == ListingStatus.CLAIMED) {
+            listing.setStatus(ListingStatus.AVAILABLE);
+            listingRepository.save(listing);
+            log.info("Listing {} reverted to AVAILABLE after claim cancellation", listing.getId());
+        }
+
+        log.info("Claim cancelled: {}", claimId);
+
+        return mapToResponseDto(saved);
+    }
+
+    /**
+     * Get a single claim by ID with authorization check.
+     *
+     * Why service-layer auth? Controllers should be thin. Security rules
+     * belong in the domain layer where they're tested and reusable.
+     */
+    @Transactional(readOnly = true)
+    public ClaimResponseDto getClaimById(UUID claimId) {
+        User currentUser = currentUserService.getCurrentUser();
+
+        Claim claim = claimRepository.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException("Claim not found: " + claimId));
+
+        boolean authorized = switch (currentUser.getRole()) {
+            case NGO -> claim.getNgo().getId().equals(currentUser.getId());
+            case DONOR -> claim.getListing().getDonor().getId().equals(currentUser.getId());
+            case ADMIN -> true;
+        };
+
+        if (!authorized) {
+            throw new IllegalStateException("You do not have access to this claim");
+        }
+
+        return mapToResponseDto(claim);
+    }
+
         private ClaimResponseDto mapToResponseDto(Claim claim) {
         return ClaimResponseDto.builder()
                 .id(claim.getId())

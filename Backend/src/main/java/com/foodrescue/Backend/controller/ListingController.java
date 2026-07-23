@@ -4,6 +4,7 @@ import com.foodrescue.Backend.dto.*;
 import com.foodrescue.Backend.entity.FoodCategory;
 import com.foodrescue.Backend.entity.ListingStatus;
 import com.foodrescue.Backend.entity.User;
+import com.foodrescue.Backend.service.ClaimService;
 import com.foodrescue.Backend.security.CurrentUser;
 import com.foodrescue.Backend.service.CurrentUserService;
 import com.foodrescue.Backend.service.ListingService;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -28,6 +30,7 @@ public class ListingController {
 
     private final ListingService listingService;
     private final CurrentUserService currentUserService;
+    private final ClaimService claimService;
 
     /**
      * Create a new listing — DONOR only.
@@ -113,5 +116,25 @@ public class ListingController {
         ListingResponseDto updated = listingService.updateStatus(id, status);
 
         return ResponseEntity.ok(ApiResponse.success(updated));
+    }
+
+    /**
+     * Create a claim on a specific listing.
+     *
+     * Alternative to POST /api/v1/claims. More RESTful because the listing
+     * is part of the URL path, not the request body.
+     */
+    @PostMapping("/{id}/claim")
+    @PreAuthorize("hasRole('NGO')")
+    public ResponseEntity<ClaimResponseDto> claimListing(
+            @PathVariable UUID id,
+            @Valid @RequestBody ClaimRequestDto dto) {
+
+        // Override listingId in DTO with path variable for safety
+        dto.setListingId(id);
+
+        log.info("NGO claiming listing: {}", id);
+        ClaimResponseDto response = claimService.createClaim(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
