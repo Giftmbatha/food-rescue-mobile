@@ -6,7 +6,6 @@ import com.foodrescue.Backend.dto.ClaimResponseDto;
 import com.foodrescue.Backend.repository.ClaimRepository;
 import com.foodrescue.Backend.repository.ListingRepository;
 import com.foodrescue.Backend.repository.NgoRepository;
-import com.foodrescue.Backend.service.CurrentUserService;
 import com.foodrescue.Backend.entity.*;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -26,6 +26,7 @@ public class ClaimService {
     private final ListingRepository listingRepository;
     private final NgoRepository ngoRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
 
     // NGO creates a claim on available listing
     @Transactional
@@ -70,8 +71,22 @@ public class ClaimService {
             listingRepository.save(listing);
         }
 
+        // Notify donor that NGO claimed their listing
+        notificationService.createNotification(
+                listing.getDonor().getUser(),  // Assuming Donor has getUser()
+                NotificationType.CLAIM_RECEIVED,
+                "New claim on your listing",
+                ngo.getOrgName() + " wants to pick up: " + listing.getTitle(),
+                Map.of(
+                        "claimId", saved.getId().toString(),
+                        "listingId", listing.getId().toString(),
+                        "screen", "claim_detail"
+                )
+        );
+
         log.info("Claim created: {} on listing {}", saved.getId(), listing.getId());
         return mapToResponseDto(saved);
+
     }
 
     // NGO approves a pending claim
@@ -93,6 +108,19 @@ public class ClaimService {
 
         claim.approve(donorResponse);
         Claim saved = claimRepository.save(claim);
+
+        // Notify NGO that donor approved
+        notificationService.createNotification(
+                claim.getNgo().getUser(),
+                NotificationType.CLAIM_APPROVED,
+                "Claim approved!",
+                claim.getListing().getDonor().getOrgName() + " approved your pickup request",
+                Map.of(
+                        "claimId", saved.getId().toString(),
+                        "listingId", claim.getListing().getId().toString(),
+                        "screen", "claim_detail"
+                )
+        );
 
         log.info("Claim approved: {}", claimId);
 
@@ -127,6 +155,18 @@ public class ClaimService {
 
         Claim saved = claimRepository.save(claim);
 
+        notificationService.createNotification(
+                claim.getNgo().getUser(),
+                NotificationType.CLAIM_REJECTED,
+                "Claim declined",
+                "Your request for " + claim.getListing().getTitle() + " was declined",
+                Map.of(
+                        "claimId", saved.getId().toString(),
+                        "listingId", claim.getListing().getId().toString(),
+                        "screen", "listings"
+                )
+        );
+
         log.info("Claim rejected: {}", claimId);
 
         return mapToResponseDto(saved);
@@ -157,6 +197,18 @@ public class ClaimService {
         Listing listing = claim.getListing();
         listing.setStatus(ListingStatus.COMPLETED);
         listingRepository.save(listing);
+
+        // Notify both parties? Or just NGO? Let's notify NGO.
+        notificationService.createNotification(
+                claim.getNgo().getUser(),
+                NotificationType.SYSTEM_MESSAGE, // Or create CLAIM_COMPLETED type
+                "Pickup completed",
+                "Thank you for rescuing food!",
+                Map.of(
+                        "claimId", saved.getId().toString(),
+                        "screen", "impact_stats"
+                )
+        );
 
         log.info("Claim completed: {}", claimId);
 
