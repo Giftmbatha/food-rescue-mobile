@@ -83,6 +83,20 @@ services:
     networks:
       - foodrescue-network
 
+  #Minio for image storage
+  minio:
+    image: minio/minio:latest
+    container_name: foodrescue-minio
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
 # Named volumes: Docker manages these, data persists across restarts
 volumes:
   postgres_data:
@@ -91,6 +105,7 @@ volumes:
     driver: local
   rabbitmq_data:
     driver: local
+  minio_data:
 
 # Custom network: Services communicate by container name (DNS resolution)
 networks:
