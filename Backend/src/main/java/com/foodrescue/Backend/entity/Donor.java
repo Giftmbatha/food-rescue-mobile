@@ -59,6 +59,9 @@ public class Donor {
     private String contactPerson;
 
     @Column
+    private String phone;
+
+    @Column
     @Builder.Default
     private Double ratingAvg = 0.0;
 

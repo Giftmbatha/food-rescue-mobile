@@ -211,7 +211,7 @@ public class ListingService {
                 .pickupNotes(listing.getPickupNotes())
                 .allowPartialClaims(listing.getAllowPartialClaims())
                 .createdAt(listing.getCreatedAt())
-                .claimCount(0)
+                .claimCount(listingRepository.countClaimsByListingId(listing.getId()))
                 .build();
     }
 }

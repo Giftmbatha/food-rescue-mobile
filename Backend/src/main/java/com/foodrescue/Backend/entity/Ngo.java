@@ -40,6 +40,9 @@ public class Ngo {
     private String address;
 
     @Column
+    private String phone;
+
+    @Column
     private Double latitude;
 
     @Column
