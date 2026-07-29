@@ -10,7 +10,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -53,6 +52,14 @@ public interface ListingRepository extends JpaRepository<Listing, UUID> {
     );
 
     // Count claims for a listing
-    //@Query("SELECT COUNT(c) FROM Claim c JOIN c.listing l WHERE l.id = :listingId")
-    //Long countClaimsByListingId(@Param("listingId") UUID listingId);
+    @Query("SELECT COUNT(c) FROM Claim c JOIN c.listing l WHERE l.id = :listingId")
+    Integer countClaimsByListingId(@Param("listingId") UUID listingId);
+
+    long countByDonorId(UUID donorId);
+    long countByDonorIdAndStatus(UUID donorId, ListingStatus status);
+
+    @Query("SELECT SUM(l.quantityKg) FROM Listing l " +
+            "JOIN Claim c ON c.listing = l " +
+            "WHERE l.donor.id = :donorId AND c.status = 'COMPLETED'")
+    Double sumQuantityKgByDonorIdAndCompletedClaims(@Param("donorId") UUID donorId);
 }

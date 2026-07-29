@@ -28,7 +28,7 @@ public class ListingResponseDto {
     private Double pickupLongitude;
     private String pickupWindow;
     private ListingStatus status;
-    private List<String> imageUrls;
+    private List<ListingImageDto> imageUrls;
     private String pickupNotes;
     private Boolean allowPartialClaims;
     private LocalDateTime createdAt;

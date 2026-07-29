@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -48,4 +49,10 @@ public class ListingRequestDto {
 
     @Builder.Default
     private Boolean allowPartialClaims = false;
+
+    // Image object keys
+    private List<String> imageObjectKeys;
+
+    // captions aligned with images by index
+    private List<String> imageCaptions;
 }

@@ -5,9 +5,10 @@ import com.foodrescue.Backend.dto.ListingResponseDto;
 import com.foodrescue.Backend.entity.Donor;
 import com.foodrescue.Backend.entity.Listing;
 import com.foodrescue.Backend.entity.ListingStatus;
-import com.foodrescue.Backend.entity.FoodCategory;
+import com.foodrescue.Backend.entity.User;
 import com.foodrescue.Backend.repository.DonorRepository;
 import com.foodrescue.Backend.repository.ListingRepository;
+import com.foodrescue.Backend.entity.FoodCategory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -15,9 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 // Service for food listing operations.
 @Service
@@ -27,22 +26,29 @@ public class ListingService {
 
     private final ListingRepository listingRepository;
     private final DonorRepository donorRepository;
+    private final CurrentUserService currentUserService;
+    private final ListingImageService listingImageService;
+    private final NotificationService notificationService;
 
     /**
      * Create a new food listing.
      *
      * Validates donor exists, maps DTO to entity, persists.
      *
-     * @param donorId the authenticated donor creating the listing
-     * @param dto listing data from client
-     * @return created listing as response DTO
+     * param donorId the authenticated donor creating the listing
+     * param dto listing data from client
+     * return created listing as response DTO
      */
     @Transactional
-    public ListingResponseDto createListing(UUID donorId, ListingRequestDto dto) {
-        log.info("Creating listing for donor: {}", donorId);
+    public ListingResponseDto createListing(ListingRequestDto dto) {
+        User currentUser = currentUserService.getCurrentUser();
 
-        Donor donor = donorRepository.findById(donorId)
-                .orElseThrow(() -> new IllegalArgumentException("Donor not found: " + donorId));
+        if (currentUser.getRole() != User.Role.DONOR) {
+            throw new IllegalStateException("Only donors can create listings");
+        }
+
+        Donor donor = donorRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Donor profile not found: "));
 
         Listing listing = Listing.builder()
                 .donor(donor)
@@ -61,9 +67,15 @@ public class ListingService {
                 .build();
 
         Listing saved = listingRepository.save(listing);
-        log.info("Listing created: id={}, title={}", saved.getId(), saved.getTitle());
 
-        return mapToResponseDto(saved);
+        // Attach images if provided
+        listingImageService.attachImages(saved, dto.getImageObjectKeys(), dto.getImageCaptions());
+
+        // Notify nearby NGOs
+        //notificationService.notifyNearbyNgos(saved);
+        log.info("Listing created: {}, by donor {}", saved.getId(), saved.getTitle());
+
+        return mapToResponseDto(saved, 15); // 15 min URL expiry
     }
 
     // Get single listing by ID.
@@ -71,7 +83,14 @@ public class ListingService {
     public ListingResponseDto getListingById(UUID id) {
         Listing listing = listingRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Listing not found: " + id));
-        return mapToResponseDto(listing);
+        return mapToResponseDto(listing, 15);
+    }
+
+    // Get all available listings
+    @Transactional(readOnly = true)
+    public Page<ListingResponseDto> getActiveListings(Pageable pageable) {
+        return listingRepository.findByStatus(ListingStatus.AVAILABLE, pageable)
+                .map(l -> mapToResponseDto(l, 15));
     }
 
     // Search available listings with optional category filter.
@@ -87,15 +106,51 @@ public class ListingService {
             listings = listingRepository.findAll(pageable);
         }
 
-        return listings.map(this::mapToResponseDto);
+        return listings.map(l -> mapToResponseDto(l, 15));
     }
 
     // Find available listings near a location.
     @Transactional(readOnly = true)
-    public Page<ListingResponseDto> findNearby(Double latitude, Double longitude, Double distanceInMeters, Pageable pageable) {
+    public Page<ListingResponseDto> findNearby(Double latitude, Double longitude, Double distanceInMeters,
+                                               Pageable pageable, int urlExpiryMinutes) {
         Page<Listing> listings = listingRepository.findNearbyAvailable(
                 latitude, longitude, distanceInMeters, pageable);
-        return listings.map(this::mapToResponseDto);
+        return listings.map(l -> mapToResponseDto(l, 15));
+    }
+
+    // Update listing
+    @Transactional
+    public ListingResponseDto updateListing(UUID listingId, ListingRequestDto dto) {
+        User currentUser = currentUserService.getCurrentUser();
+
+        Listing listing = listingRepository.findById(listingId)
+                .orElseThrow(() -> new IllegalArgumentException("Listing not found: " + listingId));
+
+        if (currentUser.getRole() != User.Role.DONOR ||
+                !listing.getDonor().getId().equals(currentUser.getId())) {
+            throw new IllegalStateException("You can only update your own listings");
+        }
+
+        // Update fields
+        listing.setTitle(dto.getTitle());
+        listing.setDescription(dto.getDescription());
+        listing.setCategory(dto.getCategory());
+        listing.setQuantityKg(dto.getQuantityKg());
+        listing.setExpiryDate(dto.getExpiryDate());
+        listing.setPickupAddress(dto.getPickupAddress());
+        listing.setPickupLongitude(dto.getPickupLongitude());
+        listing.setPickupLatitude(dto.getPickupLatitude());
+        listing.setPickupWindow(dto.getPickupWindow());
+        listing.setPickupNotes(dto.getPickupNotes());
+
+        Listing saved = listingRepository.save(listing);
+
+        // Replace images if new ones provided
+        if (dto.getImageObjectKeys() != null && !dto.getImageObjectKeys().isEmpty()) {
+            listingImageService.replaceImages(saved, dto.getImageObjectKeys(), dto.getImageCaptions());
+        }
+
+        return mapToResponseDto(saved, 15);
     }
 
     // Update listing status. Validates transition is allowed.
@@ -113,11 +168,31 @@ public class ListingService {
         Listing updated = listingRepository.save(listing);
 
         log.info("Listing {} status changed to {}", listingId, newStatus);
-        return mapToResponseDto(updated);
+        return mapToResponseDto(updated, 15);
+    }
+
+    // Delete Listing
+    @Transactional
+    public void deleteListing(UUID listingId) {
+        User currentUser = currentUserService.getCurrentUser();
+
+        Listing listing = listingRepository.findById(listingId)
+                .orElseThrow(() -> new IllegalArgumentException("Listing not found: " + listingId));
+
+        if (currentUser.getRole() != User.Role.DONOR ||
+                !listing.getDonor().getId().equals(currentUser.getId())) {
+            throw new IllegalStateException("You can only delete your own listings");
+        }
+
+        // Soft delete — set status instead of removing
+        listing.setStatus(ListingStatus.EXPIRED);
+        listingRepository.save(listing);
+
+        log.info("Listing soft-deleted: {}", listingId);
     }
 
     // Map entity to response DTO.
-    private ListingResponseDto mapToResponseDto(Listing listing) {
+    private ListingResponseDto mapToResponseDto(Listing listing, int urlExpiryMinutes) {
         return ListingResponseDto.builder()
                 .id(listing.getId())
                 .donorOrgName(listing.getDonor().getOrgName())
@@ -132,11 +207,11 @@ public class ListingService {
                 .pickupLongitude(listing.getPickupLongitude())
                 .pickupWindow(listing.getPickupWindow())
                 .status(listing.getStatus())
-                .imageUrls(listing.getImageUrlList())
+                .imageUrls(listingImageService.getImagesWithUrls(listing,urlExpiryMinutes))
                 .pickupNotes(listing.getPickupNotes())
                 .allowPartialClaims(listing.getAllowPartialClaims())
                 .createdAt(listing.getCreatedAt())
-                .claimCount(0)
+                .claimCount(listingRepository.countClaimsByListingId(listing.getId()))
                 .build();
     }
 }

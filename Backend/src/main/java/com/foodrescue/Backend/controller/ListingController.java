@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,36 +40,19 @@ public class ListingController {
      * then creates the listing with their donor profile.
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<ListingResponseDto>> createListing(
-            @Valid @RequestBody ListingRequestDto requestDto) {
+    @PreAuthorize("hasRole('DONOR')")
+    public ResponseEntity<ListingResponseDto> createListing(
+            @Valid @RequestBody ListingRequestDto dto) {
 
-        User currentUser = currentUserService.getCurrentUser();
-
-        // Verify role
-        if (currentUser.getRole() != User.Role.DONOR) {
-            log.warn("Non-donor attempted to create listing: {}", currentUser.getEmail());
-            throw new IllegalStateException("Only donors can create listings");
-        }
-
-        // Get donor ID from user (they share UUID via @MapsId)
-        UUID donorId = currentUser.getId();
-
-        log.info("Creating listing for donor: {}", donorId);
-
-        ListingResponseDto created = listingService.createListing(donorId, requestDto);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.created(created));
+        log.info("Creating listing: {}", dto.getTitle());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(listingService.createListing(dto));
     }
 
     // Get a single listing by ID.
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<ListingResponseDto>> getListing(@PathVariable UUID id) {
-
-        ListingResponseDto listing = listingService.getListingById(id);
-
-        return ResponseEntity.ok(ApiResponse.success(listing));
+    public ResponseEntity<ListingResponseDto> getListing(@PathVariable UUID id) {
+        return ResponseEntity.ok(listingService.getListingById(id));
     }
 
     // Search listings with filters.
@@ -89,6 +73,15 @@ public class ListingController {
         return ResponseEntity.ok(ApiResponse.success(results));
     }
 
+    // Get all available listings
+    @GetMapping
+    public ResponseEntity<Page<ListingResponseDto>> getActiveListings(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+
+        return ResponseEntity.ok(listingService.getActiveListings(pageable));
+    }
+
     // Find listings near a geographic location.
     @GetMapping("/nearby")
     public ResponseEntity<ApiResponse<Page<ListingResponseDto>>> findNearby(
@@ -96,19 +89,21 @@ public class ListingController {
             @RequestParam Double lng,
             @RequestParam(defaultValue = "5000") Double distance,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "15") int urlExpiryMinutes) {
 
         log.info("Nearby search: lat={}, lng={}, distance={}m", lat, lng, distance);
 
         Pageable pageable =PageRequest.of(page, size);
 
-        Page<ListingResponseDto> results = listingService.findNearby(lat, lng, distance, pageable);
+        Page<ListingResponseDto> results = listingService.findNearby(lat, lng, distance, pageable, urlExpiryMinutes);
 
         return ResponseEntity.ok(ApiResponse.success(results));
     }
 
     // Update listing status
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasRole('Donor'")
     public ResponseEntity<ApiResponse<ListingResponseDto>> updateStatus(@PathVariable UUID id, @RequestParam ListingStatus status) {
 
         log.info("Status update for listing {}: {}", id, status);
@@ -118,6 +113,24 @@ public class ListingController {
         return ResponseEntity.ok(ApiResponse.success(updated));
     }
 
+    // Update listing
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('DONOR')")
+    public ResponseEntity<ListingResponseDto> updateListing(
+            @PathVariable UUID id,
+            @Valid @RequestBody ListingRequestDto dto) {
+
+        log.info("Updating listing: {}", id);
+        return ResponseEntity.ok(listingService.updateListing(id, dto));
+    }
+
+    // Delete listing
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('DONOR')")
+    public ResponseEntity<Void> deleteListing(@PathVariable UUID id) {
+        listingService.deleteListing(id);
+        return ResponseEntity.noContent().build();
+    }
     /**
      * Create a claim on a specific listing.
      *

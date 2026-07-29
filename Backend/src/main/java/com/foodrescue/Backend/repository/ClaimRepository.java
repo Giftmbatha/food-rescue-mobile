@@ -27,4 +27,12 @@ public interface ClaimRepository extends JpaRepository<Claim, UUID> {
 
     // Count pending claims for a listing
     Long countByListingIdAndStatus(UUID listingId, ClaimStatus status);
+
+    long countByListingDonorIdAndStatus(UUID donorId, ClaimStatus status);
+    long countByNgoIdAndStatus(UUID ngoId, ClaimStatus status);
+    long countByNgoId(UUID ngoId);
+
+    @Query("SELECT SUM(c.listing.quantityKg) FROM Claim c " +
+            "WHERE c.ngo.id = :ngoId AND c.status = :status")
+    Double sumQuantityKgByNgoIdAndStatus(@Param("ngoId") UUID ngoId, @Param("status") ClaimStatus status);
 }
