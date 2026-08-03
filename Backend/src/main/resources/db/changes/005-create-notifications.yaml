@@ -1,0 +1,103 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-1
+      author: foodrescue-team
+      comment: Create custom enum type for notification categories
+      changes:
+        - sql:
+            sql: |
+              CREATE TYPE notification_type AS ENUM (
+                'NEW_LISTING', 'CLAIM_RECEIVED', 'CLAIM_APPROVED', 
+                'CLAIM_REJECTED', 'PICKUP_REMINDER', 'LISTING_EXPIRED', 'SYSTEM_MESSAGE'
+              );
+      rollback:
+        - sql:
+            sql: DROP TYPE IF EXISTS notification_type;
+
+  - changeSet:
+      id: 005-2
+      author: foodrescue-team
+      comment: Create notifications table — in-app and push notification history
+      changes:
+        - createTable:
+            tableName: notifications
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_notifications_user
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: type
+                  type: notification_type
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: body
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_read
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: push_delivered
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: data_payload
+                  type: VARCHAR(500)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: read_at
+                  type: TIMESTAMP
+
+        - createIndex:
+            tableName: notifications
+            indexName: idx_notifications_user
+            columns:
+              - column:
+                  name: user_id
+
+      rollback:
+        - dropTable:
+            tableName: notifications
+
+  - changeSet:
+      id: 005-3
+      author: foodrescue-team
+      comment: Add partial index for unread notifications — lightweight badge count queries
+      changes:
+        - sql:
+            sql: |
+              CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read) 
+              WHERE is_read = false;
+
+      rollback:
+        - sql:
+            sql: DROP INDEX IF EXISTS idx_notifications_unread;
