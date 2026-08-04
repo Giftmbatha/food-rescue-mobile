@@ -1,0 +1,55 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-1
+      author: foodrescue-team
+      comment: Create listing_images table — links S3/MinIO objects to listings
+      changes:
+        - createTable:
+            tableName: listing_images
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: listing_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_listing_images_listing
+                    references: listings(id)
+                    deleteCascade: true
+              - column:
+                  name: object_key
+                  type: VARCHAR(500)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: caption
+                  type: VARCHAR(200)
+              - column:
+                  name: display_order
+                  type: INTEGER
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: uploaded_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: listing_images
+            indexName: idx_listing_images_listing
+            columns:
+              - column:
+                  name: listing_id
+
+      rollback:
+        - dropTable:
+            tableName: listing_images

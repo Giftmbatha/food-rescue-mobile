@@ -1,0 +1,132 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-1
+      author: foodrescue-team
+      comment: Create ratings table — post-pickup trust and quality feedback
+      changes:
+        - createTable:
+            tableName: ratings
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: claim_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_ratings_claim
+                    references: claims(id)
+                    deleteCascade: true
+              - column:
+                  name: rater_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_ratings_rater
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: ratee_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_ratings_ratee
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: score
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+                    checkConstraint: "score BETWEEN 1 AND 5"
+              - column:
+                  name: comment
+                  type: VARCHAR(500)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: ratings
+            indexName: idx_ratings_claim
+            columns:
+              - column:
+                  name: claim_id
+
+        - createIndex:
+            tableName: ratings
+            indexName: idx_ratings_ratee
+            columns:
+              - column:
+                  name: ratee_id
+
+      rollback:
+        - dropTable:
+            tableName: ratings
+
+  - changeSet:
+      id: 007-2
+      author: foodrescue-team
+      comment: Create expo_push_tokens table — stores mobile push notification tokens
+      changes:
+        - createTable:
+            tableName: expo_push_tokens
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_push_tokens_user
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: token
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: device_info
+                  type: VARCHAR(200)
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_used_at
+                  type: TIMESTAMP
+
+        - createIndex:
+            tableName: expo_push_tokens
+            indexName: idx_push_tokens_user
+            columns:
+              - column:
+                  name: user_id
+
+      rollback:
+        - dropTable:
+            tableName: expo_push_tokens

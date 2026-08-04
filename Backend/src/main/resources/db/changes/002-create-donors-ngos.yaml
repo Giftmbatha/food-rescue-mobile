@@ -1,0 +1,169 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-1
+      author: foodrescue-team
+      comment: Create donors table — polymorphic profile linked to users
+      changes:
+        - createTable:
+            tableName: donors
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+                    foreignKeyName: fk_donor_user
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: org_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: org_type
+                  type: VARCHAR(50)
+              - column:
+                  name: address
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: latitude
+                  type: DECIMAL(10, 8)
+              - column:
+                  name: longitude
+                  type: DECIMAL(11, 8)
+              - column:
+                  name: contact_person
+                  type: VARCHAR(100)
+              - column:
+                  name: phone
+                  type: VARCHAR(20)
+              - column:
+                  name: rating_avg
+                  type: DECIMAL(2, 1)
+                  defaultValueNumeric: 0.0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: donors
+            indexName: idx_donors_user
+            columns:
+              - column:
+                  name: user_id
+
+      rollback:
+        - dropTable:
+            tableName: donors
+
+  - changeSet:
+      id: 002-2
+      author: foodrescue-team
+      comment: Create ngos table — polymorphic profile for non-governmental organizations
+      changes:
+        - createTable:
+            tableName: ngos
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+                    foreignKeyName: fk_ngo_user
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: org_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reg_number
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: address
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: latitude
+                  type: DECIMAL(10, 8)
+              - column:
+                  name: longitude
+                  type: DECIMAL(11, 8)
+              - column:
+                  name: contact_person
+                  type: VARCHAR(100)
+              - column:
+                  name: service_area
+                  type: VARCHAR(500)
+              - column:
+                  name: phone
+                  type: VARCHAR(20)
+              - column:
+                  name: rating_avg
+                  type: DECIMAL(2, 1)
+                  defaultValueNumeric: 0.0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: ngos
+            indexName: idx_ngos_user
+            columns:
+              - column:
+                  name: user_id
+
+      rollback:
+        - dropTable:
+            tableName: ngos
+
+  - changeSet:
+      id: 002-3
+      author: foodrescue-team
+      comment: Add GIST spatial indexes on donors and ngos for geolocation queries
+      changes:
+        - sql:
+            sql: |
+              CREATE INDEX idx_donors_location ON donors 
+              USING GIST (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography);
+        - sql:
+            sql: |
+              CREATE INDEX idx_ngos_location ON ngos 
+              USING GIST (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography);
+
+      rollback:
+        - sql:
+            sql: DROP INDEX IF EXISTS idx_donors_location;
+        - sql:
+            sql: DROP INDEX IF EXISTS idx_ngos_location;

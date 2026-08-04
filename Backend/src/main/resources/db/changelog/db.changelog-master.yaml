@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/changes/001-create-users.yaml
+  - include:
+      file: db/changelog/changes/002-create-donors-ngos.yaml
+  - include:
+      file: db/changelog/changes/003-create-listings.yaml
+  - include:
+      file: db/changelog/changes/004-create-claims.yaml
+  - include:
+      file: db/changelog/changes/005-create-notifications.yaml
+  - include:
+      file: db/changelog/changes/006-create-listing-images.yaml
+  - include:
+      file: db/changelog/changes/007-create-ratings.yaml

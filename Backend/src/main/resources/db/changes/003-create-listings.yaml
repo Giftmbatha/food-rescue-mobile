@@ -1,0 +1,149 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-1
+      author: foodrescue-team
+      comment: Enable PostGIS extension for geospatial queries
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS postgis;
+      rollback:
+        - sql:
+            sql: DROP EXTENSION IF EXISTS postgis CASCADE;
+
+  - changeSet:
+      id: 003-2
+      author: foodrescue-team
+      comment: Create custom enum type for listing status
+      changes:
+        - sql:
+            sql: |
+              CREATE TYPE listing_status AS ENUM ('AVAILABLE', 'CLAIMED', 'COMPLETED', 'EXPIRED');
+      rollback:
+        - sql:
+            sql: DROP TYPE IF EXISTS listing_status;
+
+  - changeSet:
+      id: 003-3
+      author: foodrescue-team
+      comment: Create listings table — core food rescue postings
+      changes:
+        - createTable:
+            tableName: listings
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: donor_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_listings_donor
+                    references: donors(id)
+                    deleteCascade: true
+              - column:
+                  name: title
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+              - column:
+                  name: category
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: quantity_kg
+                  type: DECIMAL(10, 2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: expiry_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: pickup_addr
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: latitude
+                  type: DECIMAL(10, 8)
+              - column:
+                  name: longitude
+                  type: DECIMAL(11, 8)
+              - column:
+                  name: pickup_window
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: listing_status
+                  defaultValue: AVAILABLE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: allow_partial_claims
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: listings
+            indexName: idx_listings_status
+            columns:
+              - column:
+                  name: status
+
+        - createIndex:
+            tableName: listings
+            indexName: idx_listings_expiry
+            columns:
+              - column:
+                  name: expiry_date
+
+        - createIndex:
+            tableName: listings
+            indexName: idx_listings_donor
+            columns:
+              - column:
+                  name: donor_id
+
+      rollback:
+        - dropTable:
+            tableName: listings
+
+  - changeSet:
+      id: 003-4
+      author: foodrescue-team
+      comment: Add GIST spatial index on listings for nearby search
+      changes:
+        - sql:
+            sql: |
+              CREATE INDEX idx_listings_location ON listings 
+              USING GIST (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography);
+
+      rollback:
+        - sql:
+            sql: DROP INDEX IF EXISTS idx_listings_location;

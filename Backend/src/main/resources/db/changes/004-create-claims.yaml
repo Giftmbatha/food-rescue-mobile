@@ -1,0 +1,107 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-1
+      author: foodrescue-team
+      comment: Create custom enum type for claim status
+      changes:
+        - sql:
+            sql: |
+              CREATE TYPE claim_status AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'COMPLETED', 'CANCELLED');
+      rollback:
+        - sql:
+            sql: DROP TYPE IF EXISTS claim_status;
+
+  - changeSet:
+      id: 004-2
+      author: foodrescue-team
+      comment: Create claims table — food rescue transaction lifecycle
+      changes:
+        - createTable:
+            tableName: claims
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: listing_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_claims_listing
+                    references: listings(id)
+                    deleteCascade: true
+              - column:
+                  name: ngo_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_claims_ngo
+                    references: ngos(id)
+                    deleteCascade: true
+              - column:
+                  name: status
+                  type: claim_status
+                  defaultValue: PENDING
+                  constraints:
+                    nullable: false
+              - column:
+                  name: proposed_pickup_time
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: message
+                  type: VARCHAR(300)
+              - column:
+                  name: donor_response
+                  type: VARCHAR(500)
+              - column:
+                  name: donor_notified
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: TIMESTAMP
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        - createIndex:
+            tableName: claims
+            indexName: idx_claims_listing
+            columns:
+              - column:
+                  name: listing_id
+
+        - createIndex:
+            tableName: claims
+            indexName: idx_claims_ngo
+            columns:
+              - column:
+                  name: ngo_id
+
+        - createIndex:
+            tableName: claims
+            indexName: idx_claims_status
+            columns:
+              - column:
+                  name: status
+
+      rollback:
+        - dropTable:
+            tableName: claims
