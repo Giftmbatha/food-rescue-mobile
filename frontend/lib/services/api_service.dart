@@ -1,181 +1,293 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http_parser/http_parser.dart';
 
-/// Centralized API client for Food Rescue backend.
-/// 
-/// Design decisions:
-/// - Singleton pattern: one instance, one token store
-/// - Automatic token refresh on 401
-/// - JSON serialization handled at call site (flexible for different models)
-/// - Base URL configurable per environment
+import '../core/config/app_config.dart';
+import '../core/errors/app_exception.dart';
+import '../core/storage/token_storage.dart';
+
 class ApiService {
-  static final ApiService _instance = ApiService._internal();
-  factory ApiService() => _instance;
-  ApiService._internal();
+  ApiService({
+    http.Client? client,
+    TokenStorage? tokenStorage,
+  })  : _client = client ?? http.Client(),
+        _tokens = tokenStorage ?? TokenStorage();
 
-  // CHANGE THIS to your machine's LAN IP
-  static const String baseUrl = 'http://192.168.8.253:8080/api/v1';
-  
-  final _storage = const FlutterSecureStorage();
-  final _client = http.Client();
+  final http.Client _client;
+  final TokenStorage _tokens;
 
-  // Getters for token management
-  Future<String?> get accessToken => _storage.read(key: 'accessToken');
-  Future<String?> get refreshToken => _storage.read(key: 'refreshToken');
+  Future<String?> get accessToken => _tokens.accessToken;
 
-  /// Generic GET request
-  Future<dynamic> get(String endpoint) async {
-    final response = await _authenticatedRequest(
-      () async => await _client.get(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await _headers(),
-      ),
+  Future<dynamic> get(
+    String endpoint, {
+    Map<String, String>? queryParameters,
+  }) {
+    return _request(
+      'GET',
+      endpoint,
+      queryParameters: queryParameters,
     );
-    return _decode(response);
   }
 
-  /// Generic POST request
-  Future<dynamic> post(String endpoint, {Map<String, dynamic>? body}) async {
-    final response = await _authenticatedRequest(
-      () async => await _client.post(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await _headers(),
-        body: body != null ? jsonEncode(body) : null,
-      ),
-    );
-    return _decode(response);
-  }
-
-  /// Generic PUT request
-  Future<dynamic> put(String endpoint, {Map<String, dynamic>? body}) async {
-    final response = await _authenticatedRequest(
-      () async => await _client.put(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await _headers(),
-        body: body != null ? jsonEncode(body) : null,
-      ),
-    );
-    return _decode(response);
-  }
-
-  /// Generic DELETE request
-  Future<dynamic> delete(String endpoint) async {
-    final response = await _authenticatedRequest(
-      () async => await _client.delete(
-        Uri.parse('$baseUrl$endpoint'),
-        headers: await _headers(),
-      ),
-    );
-    return _decode(response);
-  }
-
-  /// Multipart POST for image uploads
-  Future<dynamic> uploadFile(String endpoint, File file, {String fieldName = 'file', Map<String, String>? extraFields}) async {
-    final token = await accessToken;
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
-    
-    request.headers['Authorization'] = 'Bearer $token';
-    request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
-    
-    if (extraFields != null) {
-      request.fields.addAll(extraFields);
-    }
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-    return _decode(response);
-  }
-
-  /// Save tokens after login/register
-  Future<void> saveTokens(String access, String refresh) async {
-    await _storage.write(key: 'accessToken', value: access);
-    await _storage.write(key: 'refreshToken', value: refresh);
-  }
-
-  /// Clear tokens on logout
-  Future<void> clearTokens() async {
-    await _storage.delete(key: 'accessToken');
-    await _storage.delete(key: 'refreshToken');
-  }
-
-  // --- Private helpers ---
-
-  Future<Map<String, String>> _headers() async {
-    final token = await accessToken;
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
-
-  dynamic _decode(http.Response response) {
-    final body = response.body.isNotEmpty ? jsonDecode(response.body) : null;
-    
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return body;
-    }
-    
-    // Handle errors
-    final message = body?['message'] ?? 'Request failed: ${response.statusCode}';
-    throw ApiException(
-      statusCode: response.statusCode,
-      message: message,
+  Future<dynamic> post(
+    String endpoint, {
+    Map<String, dynamic>? body,
+  }) {
+    return _request(
+      'POST',
+      endpoint,
       body: body,
     );
   }
 
-  /// Wrap requests with automatic token refresh on 401
-  Future<http.Response> _authenticatedRequest(
-    Future<http.Response> Function() request,
-  ) async {
-    var response = await request();
-
-    // Token expired, try refresh
-    if (response.statusCode == 401) {
-      final refreshed = await _refreshAccessToken();
-      if (refreshed) {
-        response = await request(); // Retry with new token
-      }
-    }
-
-    return response;
+  Future<dynamic> put(
+    String endpoint, {
+    Map<String, dynamic>? body,
+  }) {
+    return _request(
+      'PUT',
+      endpoint,
+      body: body,
+    );
   }
 
-  Future<bool> _refreshAccessToken() async {
-    final rt = await refreshToken;
-    if (rt == null) return false;
+  Future<dynamic> delete(
+    String endpoint,
+  ) {
+    return _request(
+      'DELETE',
+      endpoint,
+    );
+  }
+
+  Future<dynamic> uploadFile(
+    String endpoint,
+    String filePath, {
+    String? mimeType,
+    Map<String, String>? extraFields,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.baseUrl}$endpoint',
+    );
+
+    final request =
+        http.MultipartRequest('POST', uri);
+
+    final token = await _tokens.accessToken;
+
+    if (token != null) {
+      request.headers['Authorization'] =
+          'Bearer $token';
+    }
+
+    final detectedMime =
+        mimeType ?? _mimeTypeFromPath(filePath);
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        filePath,
+        contentType:
+            MediaType.parse(detectedMime),
+        filename: File(filePath).uri.pathSegments.last,
+      ),
+    );
+
+    if (extraFields != null) {
+      request.fields.addAll(extraFields);
+    }
+
+    final streamed = await _client
+        .send(request)
+        .timeout(AppConfig.receiveTimeout);
+
+    final response =
+        await http.Response.fromStream(streamed);
+
+    return _handleResponse(response);
+  }
+
+  Future<dynamic> _request(
+    String method,
+    String endpoint, {
+    Map<String, dynamic>? body,
+    Map<String, String>? queryParameters,
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.baseUrl}$endpoint',
+    ).replace(
+      queryParameters: queryParameters,
+    );
+
+    final token = await _tokens.accessToken;
+
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    if (token != null) {
+      headers['Authorization'] =
+          'Bearer $token';
+    }
+
+    late http.Response response;
 
     try {
-      final response = await _client.post(
-        Uri.parse('$baseUrl/auth/refresh'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'refreshToken': rt}),
-      );
+      switch (method) {
+        case 'GET':
+          response = await _client
+              .get(uri, headers: headers)
+              .timeout(
+                AppConfig.receiveTimeout,
+              );
+          break;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        await saveTokens(data['accessToken'], data['refreshToken']);
-        return true;
+        case 'POST':
+          response = await _client
+              .post(
+                uri,
+                headers: headers,
+                body: body == null
+                    ? null
+                    : jsonEncode(body),
+              )
+              .timeout(
+                AppConfig.receiveTimeout,
+              );
+          break;
+
+        case 'PUT':
+          response = await _client
+              .put(
+                uri,
+                headers: headers,
+                body: body == null
+                    ? null
+                    : jsonEncode(body),
+              )
+              .timeout(
+                AppConfig.receiveTimeout,
+              );
+          break;
+
+        case 'DELETE':
+          response = await _client
+              .delete(uri, headers: headers)
+              .timeout(
+                AppConfig.receiveTimeout,
+              );
+          break;
+
+        default:
+          throw ApiException(
+            'Unsupported HTTP method: $method',
+          );
       }
-    } catch (_) {
-      // Refresh failed
+    } on TimeoutException {
+      throw const ApiException(
+        'The server took too long to respond.',
+      );
+    } on SocketException {
+      throw const ApiException(
+        'Unable to connect to the server.',
+      );
     }
 
-    await clearTokens();
-    return false;
+    return _handleResponse(response);
   }
-}
 
-/// Custom exception for API errors
-class ApiException implements Exception {
-  final int statusCode;
-  final String message;
-  final dynamic body;
+  dynamic _handleResponse(
+    http.Response response,
+  ) {
+    dynamic decoded;
 
-  ApiException({required this.statusCode, required this.message, this.body});
+    if (response.body.isNotEmpty) {
+      try {
+        decoded = jsonDecode(response.body);
+      } catch (_) {
+        decoded = response.body;
+      }
+    }
 
-  @override
-  String toString() => 'ApiException($statusCode): $message';
+    if (response.statusCode >= 200 &&
+        response.statusCode < 300) {
+      return decoded;
+    }
+
+    final message = _extractErrorMessage(decoded);
+
+    throw ApiException(
+      message,
+      statusCode: response.statusCode,
+      details: decoded,
+    );
+  }
+
+  String _extractErrorMessage(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final candidates = [
+        data['message'],
+        data['error'],
+        data['detail'],
+      ];
+
+      for (final value in candidates) {
+        if (value != null &&
+            value.toString().trim().isNotEmpty) {
+          return value.toString();
+        }
+
+        final nested = data['data'];
+
+        if (nested is Map<String, dynamic>) {
+          final nestedMessage =
+              nested['message'] ??
+                  nested['error'];
+
+          if (nestedMessage != null) {
+            return nestedMessage.toString();
+          }
+        }
+      }
+    }
+
+    return 'Request failed.';
+  }
+
+  String _mimeTypeFromPath(String path) {
+    switch (path.split('.').last.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'bmp':
+        return 'image/bmp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Future<void> saveTokens(
+    String accessToken,
+    String refreshToken,
+  ) {
+    return _tokens.saveTokens(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+    );
+  }
+
+  Future<void> clearTokens() {
+    return _tokens.clear();
+  }
+
+  Future<void> dispose() async {
+    _client.close();
+  }
 }
