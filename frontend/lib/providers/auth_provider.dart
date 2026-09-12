@@ -1,129 +1,190 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../models/user_model.dart';
+import '../repositories/auth_repository.dart';
+import '../repositories/profile_repository.dart';
 import '../services/api_service.dart';
 
+part 'auth_provider.g.dart';
+
+enum AuthStatus {
+  checking,
+  unauthenticated,
+  needsProfile,
+  authenticated,
+}
+
 class AuthState {
-  final bool isLoading;
-  final bool isAuthenticated;
+  final AuthStatus status;
+  final UserModel? user;
+  final bool hasOrganizationProfile;
   final String? error;
-  final Map<String, dynamic>? user;
 
   const AuthState({
-    this.isLoading = false,
-    this.isAuthenticated = false,
-    this.error,
+    required this.status,
     this.user,
+    this.hasOrganizationProfile = false,
+    this.error,
   });
 
+  bool get isAuthenticated =>
+      status == AuthStatus.authenticated ||
+      status == AuthStatus.needsProfile;
+
+  bool get needsOrganizationSetup =>
+      status == AuthStatus.needsProfile;
+
   AuthState copyWith({
-    bool? isLoading,
-    bool? isAuthenticated,
+    AuthStatus? status,
+    UserModel? user,
+    bool? hasOrganizationProfile,
     String? error,
-    Map<String, dynamic>? user,
   }) {
     return AuthState(
-      isLoading: isLoading ?? this.isLoading,
-      isAuthenticated: isAuthenticated ?? this.isAuthenticated,
-      error: error,
+      status: status ?? this.status,
       user: user ?? this.user,
+      hasOrganizationProfile:
+          hasOrganizationProfile ??
+              this.hasOrganizationProfile,
+      error: error,
     );
   }
 }
 
-class AuthNotifier extends AsyncNotifier<AuthState> {
-  late final ApiService _api;
+@riverpod
+class Auth extends _$Auth {
+  late ApiService _api;
+  late AuthRepository _authRepository;
+  late ProfileRepository _profileRepository;
 
   @override
   Future<AuthState> build() async {
     _api = ApiService();
+    _authRepository =
+        AuthRepository(_api);
+    _profileRepository =
+        ProfileRepository(_api);
 
+    return _restoreSession();
+  }
+
+  Future<AuthState> _restoreSession() async {
     final token = await _api.accessToken;
+
     if (token == null) {
-      return const AuthState();
+      return const AuthState(
+        status: AuthStatus.unauthenticated,
+      );
     }
 
     try {
-      final user = await _api.get('/auth/me');
-      return AuthState(isAuthenticated: true, user: user);
+      final userJson =
+          await _authRepository.me();
+
+      final user =
+          UserModel.fromJson(userJson);
+
+      final hasProfile =
+          await _checkProfile(user.role);
+
+      return AuthState(
+        status: hasProfile
+            ? AuthStatus.authenticated
+            : AuthStatus.needsProfile,
+        user: user,
+        hasOrganizationProfile:
+            hasProfile,
+      );
     } catch (_) {
       await _api.clearTokens();
-      return const AuthState();
+
+      return const AuthState(
+        status: AuthStatus.unauthenticated,
+      );
     }
   }
 
-  // Helper methods defined BEFORE they're used
-  String? _extractToken(Map<String, dynamic> data, List<String> keys) {
-    for (final key in keys) {
-      final value = data[key];
-      if (value != null && value is String && value.isNotEmpty) {
-        return value;
-      }
-    }
-    return null;
-  }
-
-  Map<String, dynamic>? _extractUser(Map<String, dynamic> data) {
-    final user = data['user'] ?? data['userDto'] ?? data['data'];
-    if (user is Map<String, dynamic>) {
-      return user;
-    }
-    return null;
-  }
-
-  Future<bool> login(String email, String password) async {
-    state = const AsyncValue.loading();
+  Future<bool> login(
+    String email,
+    String password,
+  ) async {
+    state = const AsyncLoading();
 
     try {
-      final response = await _api.post('/auth/login', body: {
-        'email': email,
-        'password': password,
-      });
+      final response =
+          await _authRepository.login(
+        email: email,
+        password: password,
+      );
 
-      print('=== RAW LOGIN RESPONSE ===');
-      print(response);
+      final data = _unwrap(response);
 
-      // UNWRAP: Backend wraps response in 'data' field
-      final Map<String, dynamic> wrapper = response is Map<String, dynamic>
-          ? response
-          : {};
+      final accessToken =
+          _token(data, [
+        'accessToken',
+        'access_token',
+        'token',
+      ]);
 
-      final Map<String, dynamic> data = wrapper['data'] is Map<String, dynamic>
-          ? wrapper['data']
-          : {};
+      final refreshToken =
+          _token(data, [
+        'refreshToken',
+        'refresh_token',
+      ]);
 
-      final accessToken = _extractToken(data, ['accessToken', 'access_token', 'token']);
-      final refreshToken = _extractToken(data, ['refreshToken', 'refresh_token']);
-      final user = _extractUser(data);
-
-      print('accessToken: ${accessToken != null ? 'FOUND' : 'NULL'}');
-      print('refreshToken: ${refreshToken != null ? 'FOUND' : 'NULL'}');
-
-      if (accessToken == null) {
-        state = AsyncValue.data(AuthState(
-          error: 'Server error: accessToken missing',
-        ));
+      if (accessToken == null ||
+          refreshToken == null) {
+        state = AsyncData(
+          const AuthState(
+            status:
+                AuthStatus.unauthenticated,
+            error:
+                'Login response did not contain authentication tokens.',
+          ),
+        );
         return false;
       }
 
-      if (refreshToken == null) {
-        state = AsyncValue.data(AuthState(
-          error: 'Server error: refreshToken missing',
-        ));
-        return false;
-      }
+      await _api.saveTokens(
+        accessToken,
+        refreshToken,
+      );
 
-      await _api.saveTokens(accessToken, refreshToken);
+      final userJson =
+          await _authRepository.me();
 
-      state = AsyncValue.data(AuthState(
-        isAuthenticated: true,
-        user: user,
-      ));
+      final user =
+          UserModel.fromJson(userJson);
+
+      final hasProfile =
+          await _checkProfile(user.role);
+
+      state = AsyncData(
+        AuthState(
+          status: hasProfile
+              ? AuthStatus.authenticated
+              : AuthStatus.needsProfile,
+          user: user,
+          hasOrganizationProfile:
+              hasProfile,
+        ),
+      );
+
       return true;
+    } catch (e) {
+      state = AsyncData(
+        AuthState(
+          status:
+              AuthStatus.unauthenticated,
+          error: e.toString(),
+        ),
+      );
 
-    } on ApiException catch (e) {
-      state = AsyncValue.data(AuthState(error: e.message));
       return false;
     }
   }
+
   Future<bool> register({
     required String fullName,
     required String email,
@@ -131,82 +192,181 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     required String role,
     String? phone,
   }) async {
-    state = const AsyncValue.loading();
+    state = const AsyncLoading();
 
     try {
-      final response = await _api.post('/auth/register', body: {
-        'fullName': fullName,
-        'email': email,
-        'password': password,
-        'role': role,
-        if (phone != null) 'phone': phone,
-      });
+      await _authRepository.register(
+        fullName: fullName,
+        email: email,
+        password: password,
+        role: role,
+        phone: phone,
+      );
 
-      print('=== RAW REGISTER RESPONSE ===');
-      print(response);
+      // Registration endpoint creates the user.
+      // Login is then used to obtain JWT tokens.
+      return await login(
+        email,
+        password,
+      );
+    } catch (e) {
+      state = AsyncData(
+        AuthState(
+          status:
+              AuthStatus.unauthenticated,
+          error: e.toString(),
+        ),
+      );
 
-      // UNWRAP: Backend wraps response in 'data' field
-      final Map<String, dynamic> wrapper = response is Map<String, dynamic>
-          ? response
-          : {};
+      return false;
+    }
+  }
 
-      final Map<String, dynamic> data = wrapper['data'] is Map<String, dynamic>
-          ? wrapper['data']
-          : {};
+  Future<bool> completeOrganizationProfile({
+    required Map<String, dynamic> payload,
+  }) async {
+    final current = state.value;
 
-      final accessToken = _extractToken(data, ['accessToken', 'access_token', 'token']);
-      final refreshToken = _extractToken(data, ['refreshToken', 'refresh_token']);
-      final user = _extractUser(data);
+    if (current == null ||
+        current.user == null) {
+      return false;
+    }
 
-      print('accessToken: ${accessToken != null ? 'FOUND' : 'NULL'}');
-      print('refreshToken: ${refreshToken != null ? 'FOUND' : 'NULL'}');
-
-      if (accessToken == null || refreshToken == null) {
-        state = AsyncValue.data(AuthState(
-          error: 'Server error: tokens missing. Keys: ${data.keys.toList()}',
-        ));
-        return false;
+    try {
+      if (current.user!.role == 'DONOR') {
+        await _profileRepository.createDonorProfile(
+          orgName:
+              payload['orgName'].toString(),
+          orgType:
+              payload['orgType'].toString(),
+          address:
+              payload['address'].toString(),
+          contactPerson:
+              payload['contactPerson'].toString(),
+          latitude:
+              payload['latitude'] as double?,
+          longitude:
+              payload['longitude'] as double?,
+        );
+      } else {
+        await _profileRepository.createNgoProfile(
+          orgName:
+              payload['orgName'].toString(),
+          registrationNumber:
+              payload['registrationNumber']
+                  .toString(),
+          address:
+              payload['address'].toString(),
+          contactPerson:
+              payload['contactPerson'].toString(),
+          serviceArea:
+              payload['serviceArea'].toString(),
+          latitude:
+              payload['latitude'] as double?,
+          longitude:
+              payload['longitude'] as double?,
+        );
       }
 
-      await _api.saveTokens(accessToken, refreshToken);
+      final refreshed =
+          await _restoreSession();
 
-      state = AsyncValue.data(AuthState(
-        isAuthenticated: true,
-        user: user,
-      ));
-      return true;
+      state = AsyncData(refreshed);
 
-    } on ApiException catch (e) {
-      state = AsyncValue.data(AuthState(error: e.message));
+      return refreshed.hasOrganizationProfile;
+    } catch (e) {
+      state = AsyncData(
+        current.copyWith(
+          error: e.toString(),
+        ),
+      );
+
       return false;
     }
   }
 
   Future<void> logout() async {
-    try {
-      await _api.post('/auth/logout');
-    } catch (_) {}
+    await _authRepository.logout();
 
-    await _api.clearTokens();
-    state = const AsyncValue.data(AuthState());
+    state = const AsyncData(
+      AuthState(
+        status:
+            AuthStatus.unauthenticated,
+      ),
+    );
   }
 
-  void clearError() {
-    final current = state.value ?? const AuthState();
-    state = AsyncValue.data(current.copyWith(error: null));
+  Future<bool> _checkProfile(
+    String? role,
+  ) async {
+    switch (role?.toUpperCase()) {
+      case 'DONOR':
+        return await _profileRepository
+                .getMyDonorProfile() !=
+            null;
+
+      case 'NGO':
+        return await _profileRepository
+                .getMyNgoProfile() !=
+            null;
+
+      default:
+        return false;
+    }
+  }
+
+  Map<String, dynamic> _unwrap(
+    Map<String, dynamic> response,
+  ) {
+    final data = response['data'];
+
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+
+    return response;
+  }
+
+  String? _token(
+    Map<String, dynamic> data,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = data[key];
+
+      if (value is String &&
+          value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
   }
 }
 
-final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(() {
-  return AuthNotifier();
+final isAuthenticatedProvider =
+    Provider<bool>((ref) {
+  final auth =
+      ref.watch(authProvider);
+
+  return auth.value?.isAuthenticated ??
+      false;
 });
 
-final isAuthenticatedProvider = Provider<bool>((ref) {
-  final authAsync = ref.watch(authProvider);
-  return authAsync.value?.isAuthenticated ?? false;
+final hasOrganizationProfileProvider =
+    Provider<bool>((ref) {
+  final auth =
+      ref.watch(authProvider);
+
+  return auth.value
+          ?.hasOrganizationProfile ??
+      false;
 });
 
-final userRoleProvider = Provider<String?>((ref) {
-  final authAsync = ref.watch(authProvider);
-  return authAsync.value?.user?['role'] as String?;
+final userRoleProvider =
+    Provider<String?>((ref) {
+  final auth =
+      ref.watch(authProvider);
+
+  return auth.value?.user?.role;
 });
