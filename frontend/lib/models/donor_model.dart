@@ -5,6 +5,7 @@ class DonorModel {
   final String orgType;
   final String address;
   final String contactPerson;
+  final String? phone;
   final double? latitude;
   final double? longitude;
   final double? ratingAvg;
@@ -16,14 +17,15 @@ class DonorModel {
     required this.orgType,
     required this.address,
     required this.contactPerson,
+    this.phone,
     this.latitude,
     this.longitude,
     this.ratingAvg,
   });
 
   factory DonorModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+      Map<String, dynamic> json,
+      ) {
     return DonorModel(
       id: json['id']?.toString(),
       userId: json['userId']?.toString(),
@@ -31,7 +33,8 @@ class DonorModel {
       orgType: json['orgType']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
       contactPerson:
-          json['contactPerson']?.toString() ?? '',
+      json['contactPerson']?.toString() ?? '',
+      phone: json['phone']?.toString(),
       latitude: _double(json['latitude']),
       longitude: _double(json['longitude']),
       ratingAvg: _double(json['ratingAvg']),
@@ -39,7 +42,12 @@ class DonorModel {
   }
 
   static double? _double(dynamic value) {
-    if (value is num) return value.toDouble();
-    return double.tryParse(value?.toString() ?? '');
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value?.toString() ?? '',
+    );
   }
 }
