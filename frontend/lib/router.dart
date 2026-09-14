@@ -8,14 +8,20 @@ import 'providers/organization_setup_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/auth/organization_setup_screen.dart';
+
 import 'screens/donor/donor_home_screen.dart';
+import 'screens/donor/donor_shell.dart';
+import 'screens/donor/my_donations_screen.dart';
+import 'screens/donor/profile_screen.dart';
+import 'screens/donor/edit_profile_screen.dart';
 import 'screens/donor/create_listing_screen.dart';
+
 import 'screens/ngo/discover_screen.dart';
 
 final routerProvider =
-    Provider<GoRouter>((ref) {
+Provider<GoRouter>((ref) {
   final authAsync =
-      ref.watch(authProvider);
+  ref.watch(authProvider);
 
   return GoRouter(
     initialLocation: '/login',
@@ -24,9 +30,6 @@ final routerProvider =
       final auth =
           authAsync.value;
 
-      // Keep splash/loading behavior simple.
-      // The auth provider will trigger router
-      // rebuilds when its state changes.
       if (authAsync.isLoading) {
         return null;
       }
@@ -40,7 +43,7 @@ final routerProvider =
 
       final isAuthRoute =
           location == '/login' ||
-          location == '/register';
+              location == '/register';
 
       final isSetupRoute =
           location == '/organization-setup';
@@ -71,24 +74,26 @@ final routerProvider =
       GoRoute(
         path: '/login',
         builder: (_, __) =>
-            const LoginScreen(),
+        const LoginScreen(),
       ),
 
       GoRoute(
         path: '/register',
         builder: (_, __) =>
-            const RegisterScreen(),
+        const RegisterScreen(),
       ),
 
       GoRoute(
         path: '/organization-setup',
         builder: (context, state) {
           final role =
-              state.extra
-                  as OrganizationRole?;
+          state.extra
+          as OrganizationRole?;
 
           final userRole =
-              ref.read(userRoleProvider);
+          ref.read(
+            userRoleProvider,
+          );
 
           final resolvedRole =
               role ??
@@ -102,22 +107,76 @@ final routerProvider =
         },
       ),
 
-      GoRoute(
-        path: '/donor/home',
-        builder: (_, __) =>
-            const DonorHomeScreen(),
+      // ----------------------------------------------------------
+      // DONOR APPLICATION
+      // ----------------------------------------------------------
+
+      StatefulShellRoute.indexedStack(
+        builder: (
+            context,
+            state,
+            navigationShell,
+            ) {
+          return DonorShell(
+            navigationShell:
+            navigationShell,
+          );
+        },
+        branches: [
+          // HOME
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/donor/home',
+                builder: (_, __) =>
+                const DonorHomeScreen(),
+              ),
+            ],
+          ),
+
+          // DONATIONS
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/donor/donations',
+                builder: (_, __) =>
+                const MyDonationsScreen(),
+              ),
+            ],
+          ),
+
+          // PROFILE
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/donor/profile',
+                builder: (_, __) =>
+                const ProfileScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (_, __) =>
+                    const EditProfileScreen(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
 
+      // CREATE DONATION
       GoRoute(
         path: '/donor/create-listing',
         builder: (_, __) =>
-            const CreateListingScreen(),
+        const CreateListingScreen(),
       ),
 
+      // NGO
       GoRoute(
         path: '/ngo/discover',
         builder: (_, __) =>
-            const DiscoverScreen(),
+        const DiscoverScreen(),
       ),
     ],
   );
