@@ -6,92 +6,101 @@ class ClaimRepository {
 
   ClaimRepository(this._api);
 
-  Future<List<ClaimModel>> getClaims() async {
-    final response = await _api.get('/claims');
+  Future<ClaimModel> createClaim({
+    required String listingId,
+    required DateTime proposedPickupTime,
+    String? message,
+  }) async {
+    final response = await _api.post(
+      '/claims',
+      body: {
+        'listingId': listingId,
+        'proposedPickupTime':
+        proposedPickupTime.toIso8601String(),
+        if (message != null &&
+            message.trim().isNotEmpty)
+          'message': message.trim(),
+      },
+    );
 
-    return _extractList(response)
+    return ClaimModel.fromJson(
+      _unwrapMap(response),
+    );
+  }
+
+  Future<ClaimModel> getClaim(
+      String claimId,
+      ) async {
+    final response = await _api.get(
+      '/claims/$claimId',
+    );
+
+    return ClaimModel.fromJson(
+      _unwrapMap(response),
+    );
+  }
+
+  Future<List<ClaimModel>> getMyClaims({
+    int page = 0,
+    int size = 20,
+  }) async {
+    final response = await _api.get(
+      '/claims?page=$page&size=$size',
+    );
+
+    if (response is! Map<String, dynamic>) {
+      return [];
+    }
+
+    final content = response['content'];
+
+    if (content is! List) {
+      return [];
+    }
+
+    return content
+        .whereType<Map<String, dynamic>>()
         .map(ClaimModel.fromJson)
         .toList();
   }
 
-  Future<ClaimModel> getClaim(
-    String id,
-  ) async {
-    final response =
-        await _api.get('/claims/$id');
-
-    return ClaimModel.fromJson(
-      _extractMap(response),
-    );
-  }
-
-  Future<ClaimModel> claimListing(
-    String listingId,
-  ) async {
+  Future<ClaimModel> cancelClaim(
+      String claimId,
+      ) async {
     final response = await _api.post(
-      '/listings/$listingId/claim',
-    );
-
-    return ClaimModel.fromJson(
-      _extractMap(response),
-    );
-  }
-
-  Future<void> updateStatus(
-    String claimId,
-    String status,
-  ) async {
-    await _api.put(
-      '/claims/$claimId/status',
-      body: {
-        'status': status,
-      },
-    );
-  }
-
-  Future<void> cancelClaim(
-    String claimId,
-  ) async {
-    await _api.post(
       '/claims/$claimId/cancel',
     );
+
+    return ClaimModel.fromJson(
+      _unwrapMap(response),
+    );
   }
 
-  List<Map<String, dynamic>> _extractList(
-    dynamic response,
-  ) {
-    dynamic data = response;
+  Future<ClaimModel> completeClaim(
+      String claimId,
+      ) async {
+    final response = await _api.put(
+      '/claims/$claimId/complete',
+    );
 
-    if (data is Map<String, dynamic>) {
-      data = data['data'] ?? data;
-    }
-
-    if (data is Map<String, dynamic>) {
-      data = data['content'] ?? data;
-    }
-
-    if (data is List) {
-      return data
-          .whereType<Map<String, dynamic>>()
-          .toList();
-    }
-
-    return [];
+    return ClaimModel.fromJson(
+      _unwrapMap(response),
+    );
   }
 
-  Map<String, dynamic> _extractMap(
-    dynamic response,
-  ) {
-    if (response is Map<String, dynamic>) {
-      final data = response['data'];
-
-      if (data is Map<String, dynamic>) {
-        return data;
-      }
-
-      return response;
+  Map<String, dynamic> _unwrapMap(
+      dynamic response,
+      ) {
+    if (response is! Map<String, dynamic>) {
+      return {};
     }
 
-    return {};
+    final data = response['data'];
+
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+
+    return response;
   }
 }

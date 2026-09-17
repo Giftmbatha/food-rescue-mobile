@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'models/listing_model.dart';
+
 import 'providers/auth_provider.dart';
 import 'providers/organization_setup_provider.dart';
 
@@ -17,6 +19,10 @@ import 'screens/donor/edit_profile_screen.dart';
 import 'screens/donor/create_listing_screen.dart';
 
 import 'screens/ngo/discover_screen.dart';
+import 'screens/ngo/ngo_shell.dart';
+import 'screens/ngo/my_claims_screen.dart';
+import 'screens/ngo/profile_screen.dart';
+import 'screens/ngo/listing_details_screen.dart';
 
 final routerProvider =
 Provider<GoRouter>((ref) {
@@ -71,6 +77,10 @@ Provider<GoRouter>((ref) {
     },
 
     routes: [
+      // ----------------------------------------------------------
+      // AUTHENTICATION
+      // ----------------------------------------------------------
+
       GoRoute(
         path: '/login',
         builder: (_, __) =>
@@ -123,7 +133,10 @@ Provider<GoRouter>((ref) {
           );
         },
         branches: [
-          // HOME
+          // ------------------------------------------------------
+          // DONOR HOME
+          // ------------------------------------------------------
+
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -134,7 +147,10 @@ Provider<GoRouter>((ref) {
             ],
           ),
 
-          // DONATIONS
+          // ------------------------------------------------------
+          // DONOR DONATIONS
+          // ------------------------------------------------------
+
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -145,7 +161,10 @@ Provider<GoRouter>((ref) {
             ],
           ),
 
-          // PROFILE
+          // ------------------------------------------------------
+          // DONOR PROFILE
+          // ------------------------------------------------------
+
           StatefulShellBranch(
             routes: [
               GoRoute(
@@ -165,18 +184,89 @@ Provider<GoRouter>((ref) {
         ],
       ),
 
+      // ----------------------------------------------------------
       // CREATE DONATION
+      // ----------------------------------------------------------
+
       GoRoute(
         path: '/donor/create-listing',
         builder: (_, __) =>
         const CreateListingScreen(),
       ),
 
-      // NGO
-      GoRoute(
-        path: '/ngo/discover',
-        builder: (_, __) =>
-        const DiscoverScreen(),
+      // ----------------------------------------------------------
+      // NGO APPLICATION
+      // ----------------------------------------------------------
+
+      StatefulShellRoute.indexedStack(
+        builder: (
+            context,
+            state,
+            navigationShell,
+            ) {
+          return NgoShell(
+            navigationShell:
+            navigationShell,
+          );
+        },
+        branches: [
+          // ------------------------------------------------------
+          // NGO DISCOVER
+          // ------------------------------------------------------
+
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/ngo/discover',
+                builder: (_, __) =>
+                const DiscoverScreen(),
+                routes: [
+                  // Listing Details
+                  GoRoute(
+                    path: 'listing/:id',
+                    builder: (_, state) {
+                      final listing =
+                      state.extra
+                      as ListingModel;
+
+                      return ListingDetailsScreen(
+                        listing: listing,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // ------------------------------------------------------
+          // NGO MY CLAIMS
+          // ------------------------------------------------------
+
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/ngo/claims',
+                builder: (_, __) =>
+                const MyClaimsScreen(),
+              ),
+            ],
+          ),
+
+          // ------------------------------------------------------
+          // NGO PROFILE
+          // ------------------------------------------------------
+
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/ngo/profile',
+                builder: (_, __) =>
+                const NgoProfileScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );
