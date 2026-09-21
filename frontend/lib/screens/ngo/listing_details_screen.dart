@@ -139,7 +139,7 @@ class ListingDetailsScreen extends StatelessWidget {
                 listing.status == 'AVAILABLE'
                     ? () {
                   context.push(
-                    '/ngo/listing/${listing.id}/claim',
+                    '/ngo/discover/listing/${listing.id}/claim',
                     extra: listing,
                   );
                 }

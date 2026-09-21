@@ -103,4 +103,40 @@ class ClaimRepository {
 
     return response;
   }
+
+  Future<ClaimModel> approveClaim({
+    required String claimId,
+    String? donorResponse,
+  }) async {
+    final response = await _api.put(
+      '/claims/$claimId/approve',
+      body: {
+        if (donorResponse != null &&
+            donorResponse.trim().isNotEmpty)
+          'donorResponse': donorResponse.trim(),
+      },
+    );
+
+    return ClaimModel.fromJson(
+      _unwrapMap(response),
+    );
+  }
+
+  Future<ClaimModel> rejectClaim({
+    required String claimId,
+    String? donorResponse,
+  }) async {
+    final response = await _api.put(
+      '/claims/$claimId/reject',
+      body: {
+        if (donorResponse != null &&
+            donorResponse.trim().isNotEmpty)
+          'donorResponse': donorResponse.trim(),
+      },
+    );
+
+    return ClaimModel.fromJson(
+      _unwrapMap(response),
+    );
+  }
 }
