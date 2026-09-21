@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'models/listing_model.dart';
+import 'models/claim_model.dart';
 
 import 'providers/auth_provider.dart';
 import 'providers/organization_setup_provider.dart';
@@ -23,6 +24,8 @@ import 'screens/ngo/ngo_shell.dart';
 import 'screens/ngo/my_claims_screen.dart';
 import 'screens/ngo/profile_screen.dart';
 import 'screens/ngo/listing_details_screen.dart';
+import 'screens/ngo/claim_food_screen.dart';
+import 'screens/ngo/claim_details_screen.dart';
 
 final routerProvider =
 Provider<GoRouter>((ref) {
@@ -218,21 +221,29 @@ Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/ngo/discover',
-                builder: (_, __) =>
-                const DiscoverScreen(),
+                builder: (_, __) => const DiscoverScreen(),
                 routes: [
-                  // Listing Details
                   GoRoute(
                     path: 'listing/:id',
                     builder: (_, state) {
-                      final listing =
-                      state.extra
-                      as ListingModel;
+                      final listing = state.extra as ListingModel;
 
                       return ListingDetailsScreen(
                         listing: listing,
                       );
                     },
+                    routes: [
+                      GoRoute(
+                        path: 'claim',
+                        builder: (_, state) {
+                          final listing = state.extra as ListingModel;
+
+                          return ClaimFoodScreen(
+                            listing: listing,
+                          );
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -267,6 +278,21 @@ Provider<GoRouter>((ref) {
             ],
           ),
         ],
+      ),
+
+      // ------------------------------------------------------
+      // NGO CLAIM DETAILS
+      // ------------------------------------------------------
+
+      GoRoute(
+        path: '/ngo/claim/:id',
+        builder: (_, state) {
+          final claim = state.extra as ClaimModel;
+
+          return ClaimDetailsScreen(
+            claim: claim,
+          );
+        },
       ),
     ],
   );

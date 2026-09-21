@@ -224,6 +224,74 @@ class ClaimNotifier extends Notifier<ClaimState> {
       claims: claims,
     );
   }
+
+  Future<bool> approveClaim({
+    required String claimId,
+    String? donorResponse,
+  }) async {
+    state = state.copyWith(
+      isSubmitting: true,
+      error: null,
+    );
+
+    try {
+      final claim = await ref
+          .read(claimRepositoryProvider)
+          .approveClaim(
+        claimId: claimId,
+        donorResponse: donorResponse,
+      );
+
+      _replaceClaim(claim);
+
+      state = state.copyWith(
+        isSubmitting: false,
+      );
+
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        error: e.toString(),
+      );
+
+      return false;
+    }
+  }
+
+  Future<bool> rejectClaim({
+    required String claimId,
+    String? donorResponse,
+  }) async {
+    state = state.copyWith(
+      isSubmitting: true,
+      error: null,
+    );
+
+    try {
+      final claim = await ref
+          .read(claimRepositoryProvider)
+          .rejectClaim(
+        claimId: claimId,
+        donorResponse: donorResponse,
+      );
+
+      _replaceClaim(claim);
+
+      state = state.copyWith(
+        isSubmitting: false,
+      );
+
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isSubmitting: false,
+        error: e.toString(),
+      );
+
+      return false;
+    }
+  }
 }
 
 final claimProvider =
